@@ -12,7 +12,7 @@ import Foundation
 public protocol NetworkClient {
     
     ///Performs a request and execute a completion handler when it is done
-    func perform(_ request: URLRequest, completion: @escaping @Sendable (NetworkResponse) -> Void)
+    func perform(_ request: URLRequest, completion: @escaping @Sendable @MainActor (NetworkResponse) -> Void)
 }
 
 extension NetworkClient {
