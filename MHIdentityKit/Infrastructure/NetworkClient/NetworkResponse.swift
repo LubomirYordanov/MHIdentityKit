@@ -8,7 +8,7 @@
 
 import Foundation
 
-public struct NetworkResponse {
+public struct NetworkResponse : @unchecked Sendable {
     
     public var data: Data?
     public var response: URLResponse?
