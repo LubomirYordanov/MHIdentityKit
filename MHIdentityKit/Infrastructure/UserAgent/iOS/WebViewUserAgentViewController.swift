@@ -26,12 +26,6 @@ open class WebViewUserAgentViewController: UIViewController, WKNavigationDelegat
     /// Override or inject to customize behavior (e.g. custom URL scheme handlers).
     public let webViewConfiguration: WKWebViewConfiguration
     
-    /// The redirection handler set by the UserAgent perform method.
-    /// Exposed publicly to allow custom URL scheme interception (e.g. via WKURLSchemeHandler).
-    public private(set) var redirectionHandler: ((URLRequest) throws -> Bool)?
-    
-    // MARK: - Init
-    
     /// Creates an instance with a default WKWebViewConfiguration.
     public init() {
         self.webViewConfiguration = WKWebViewConfiguration()
@@ -114,6 +108,16 @@ open class WebViewUserAgentViewController: UIViewController, WKNavigationDelegat
     
     private var request: URLRequest?
     private var redirectURI: URL?
+    private var redirectionHandler:  ((URLRequest) throws -> Bool)?
+    
+    /// The redirection handler set by the UserAgent perform method.
+    /// Exposed publicly to allow custom URL scheme interception (e.g. via WKURLSchemeHandler).
+    public var publicRedirectionHandler: ((URLRequest) throws -> Bool)? {
+        return self.redirectionHandler
+    }
+    
+    /// Called when the cancel button (added via `addCancelButton()`) is tapped.
+    public var onCancel: (() -> Void)?
     
     deinit {
         
@@ -150,7 +154,12 @@ open class WebViewUserAgentViewController: UIViewController, WKNavigationDelegat
     }
     
     private func loadData() {
-        guard let request = self.request else { return }
+        
+        guard let request = self.request else {
+            
+            return
+        }
+        
         self.webView.load(request)
     }
     
@@ -168,14 +177,43 @@ open class WebViewUserAgentViewController: UIViewController, WKNavigationDelegat
         self.progressView.progress = Float(self.webView.estimatedProgress)
     }
     
-    // MARK: - Actions
+    //MARK: - Actions
     
-    @IBAction open func backAction() { self.webView.goBack() }
-    @IBAction open func forwardAction() { self.webView.goForward() }
-    @IBAction open func stopAction() { self.webView.stopLoading() }
-    @IBAction open func reloadAction() { self.webView.reload() }
+    @IBAction open func backAction() {
+        
+        self.webView.goBack()
+    }
     
-    // MARK: - WKNavigationDelegate
+    @IBAction open func forwardAction() {
+        
+        self.webView.goForward()
+    }
+    
+    @IBAction open func stopAction() {
+        
+        self.webView.stopLoading()
+    }
+    
+    @IBAction open func reloadAction() {
+        
+        self.webView.reload()
+    }
+    
+    /// Adds a system "Cancel" bar button to the left of the navigation item.
+    /// Tapping it invokes `onCancel`. Call after embedding in a UINavigationController.
+    public func addCancelButton() {
+        navigationItem.leftBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .cancel,
+            target: self,
+            action: #selector(cancelTapped)
+        )
+    }
+    
+    @objc private func cancelTapped() {
+        onCancel?()
+    }
+    
+    //MARK: - WKNavigationDelegate
     
     open func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         if (try? self.redirectionHandler?(navigationAction.request)) == true {
