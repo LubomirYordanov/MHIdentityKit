@@ -20,33 +20,64 @@ import UIKit
 
 open class WebViewUserAgentViewController: UIViewController, WKNavigationDelegate, UserAgent {
     
+    // MARK: - Public API
+    
+    /// The WKWebViewConfiguration used to create the web view.
+    /// Override or inject to customize behavior (e.g. custom URL scheme handlers).
+    public let webViewConfiguration: WKWebViewConfiguration
+    
+    /// The redirection handler set by the UserAgent perform method.
+    /// Exposed publicly to allow custom URL scheme interception (e.g. via WKURLSchemeHandler).
+    public private(set) var redirectionHandler: ((URLRequest) throws -> Bool)?
+    
+    // MARK: - Init
+    
+    /// Creates an instance with a default WKWebViewConfiguration.
+    public init() {
+        self.webViewConfiguration = WKWebViewConfiguration()
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    /// Creates an instance with a custom WKWebViewConfiguration.
+    /// Use this to inject URL scheme handlers, content rules, or other custom config.
+    ///
+    /// - parameter configuration: A WKWebViewConfiguration instance.
+    public init(configuration: WKWebViewConfiguration) {
+        self.webViewConfiguration = configuration
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    public required init?(coder: NSCoder) {
+        self.webViewConfiguration = WKWebViewConfiguration()
+        super.init(coder: coder)
+    }
+    
+    // MARK: - Outlets
+    
     @IBOutlet open lazy var progressView: UIProgressView! = { [unowned self] in
         
         let progressView = UIProgressView(progressViewStyle: .default)
-        
         self.view.addSubview(progressView)
-        
         progressView.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.init(item: progressView, attribute: .top, relatedBy: .equal, toItem: self.view.safeAreaLayoutGuide.topAnchor, attribute: .bottom, multiplier: 1, constant: 0).isActive = true
-        NSLayoutConstraint.init(item: progressView, attribute: .left, relatedBy: .equal, toItem: self.view, attribute: .left, multiplier: 1, constant: 0).isActive = true
-        NSLayoutConstraint.init(item: progressView, attribute: .right, relatedBy: .equal, toItem: self.view, attribute: .right, multiplier: 1, constant: 0).isActive = true
-        
+        NSLayoutConstraint.activate([
+            progressView.topAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.topAnchor),
+            progressView.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
+            progressView.trailingAnchor.constraint(equalTo: self.view.trailingAnchor)
+        ])
         return progressView
     }()
     
     @IBOutlet open lazy var webView: WKWebView! = { [unowned self] in
-       
-        let webView = WKWebView()
+        let webView = WKWebView(frame: .zero, configuration: self.webViewConfiguration)
         webView.navigationDelegate = self
-        
         self.view.addSubview(webView)
-        
         webView.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.init(item: webView, attribute: .top, relatedBy: .equal, toItem: self.view, attribute: .top, multiplier: 1, constant: 0).isActive = true
-        NSLayoutConstraint.init(item: webView, attribute: .bottom, relatedBy: .equal, toItem: self.view, attribute: .bottom, multiplier: 1, constant: 0).isActive = true
-        NSLayoutConstraint.init(item: webView, attribute: .left, relatedBy: .equal, toItem: self.view, attribute: .left, multiplier: 1, constant: 0).isActive = true
-        NSLayoutConstraint.init(item: webView, attribute: .right, relatedBy: .equal, toItem: self.view, attribute: .right, multiplier: 1, constant: 0).isActive = true
-        
+        NSLayoutConstraint.activate([
+            webView.topAnchor.constraint(equalTo: self.view.topAnchor),
+            webView.bottomAnchor.constraint(equalTo: self.view.bottomAnchor),
+            webView.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: self.view.trailingAnchor)
+        ])
         return webView
 
     }()
@@ -83,7 +114,6 @@ open class WebViewUserAgentViewController: UIViewController, WKNavigationDelegat
     
     private var request: URLRequest?
     private var redirectURI: URL?
-    private var redirectionHandler:  ((URLRequest) throws -> Bool)?
     
     deinit {
         
@@ -120,56 +150,34 @@ open class WebViewUserAgentViewController: UIViewController, WKNavigationDelegat
     }
     
     private func loadData() {
-        
-        guard let request = self.request else {
-            
-            return
-        }
-        
+        guard let request = self.request else { return }
         self.webView.load(request)
     }
     
+    // MARK: - UI Updates
+    
     open func updateControlButtons() {
-        
         self.backButton.isEnabled = self.webView.canGoBack
         self.forwardButton.isEnabled = self.webView.canGoForward
         self.stopButton.isEnabled = self.webView.isLoading
         self.reloadButton.isEnabled = !self.webView.isLoading
-        
         self.progressView.isHidden = !self.webView.isLoading
     }
     
     open func updateProgress() {
-        
         self.progressView.progress = Float(self.webView.estimatedProgress)
     }
     
-    //MARK: - Actions
+    // MARK: - Actions
     
-    @IBAction open func backAction() {
-        
-        self.webView.goBack()
-    }
+    @IBAction open func backAction() { self.webView.goBack() }
+    @IBAction open func forwardAction() { self.webView.goForward() }
+    @IBAction open func stopAction() { self.webView.stopLoading() }
+    @IBAction open func reloadAction() { self.webView.reload() }
     
-    @IBAction open func forwardAction() {
-        
-        self.webView.goForward()
-    }
-    
-    @IBAction open func stopAction() {
-        
-        self.webView.stopLoading()
-    }
-    
-    @IBAction open func reloadAction() {
-        
-        self.webView.reload()
-    }
-    
-    //MARK: - WKNavigationDelegate
+    // MARK: - WKNavigationDelegate
     
     open func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        
         if (try? self.redirectionHandler?(navigationAction.request)) == true {
             
             decisionHandler(.cancel)
